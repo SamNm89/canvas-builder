@@ -1,14 +1,20 @@
 import { SnappingManager } from './SnappingManager.js';
+import { eventBus } from './EventBus.js';
 
 export class InteractionManager {
-    constructor(canvasManager, scene) {
+    constructor(canvasManager, scene, camera) {
         this.canvas = canvasManager.canvas;
         this.scene = scene;
+        this.camera = camera;
         this.snappingManager = new SnappingManager();
 
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
         this.selectedObject = null;
+        this.mode = 'idle'; // idle, dragObject, panCamera
+
+        // Rotation Control
+        this.rotationMode = false;
         this.initialObjectPosition = { x: 0, y: 0 };
 
         this.initListeners();
@@ -19,14 +25,28 @@ export class InteractionManager {
         window.addEventListener('mousemove', (e) => this.onMouseMove(e));
         window.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+
+        // Global Key Listener for Rotation Toggle
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'r') {
+                this.toggleRotationMode();
+            }
+        });
+
+        // Listen for events from UI
+        eventBus.on('toggleRotation', () => this.toggleRotationMode());
+        eventBus.on('resetView', () => this.camera.reset());
+        eventBus.on('autoGroup', () => this.autoGroup());
+    }
+
+    toggleRotationMode() {
+        this.rotationMode = !this.rotationMode;
+        // Emit for UI button status update if we add one
+        eventBus.emit('rotationModeChanged', this.rotationMode);
     }
 
     getMousePos(e) {
         const rect = this.canvas.getBoundingClientRect();
-        // Account for high-DPI (if the canvas context is scaled, we might need to adjust, 
-        // but the object coordinates usually match the logical pixel size if we handled scale in draw only.
-        // However, in CanvasManager, we scaled SCALE, but the width/height style is logical.
-        // So usually plain clientX - rect.left is the logical coordinate space we want.
         return {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top
@@ -34,73 +54,184 @@ export class InteractionManager {
     }
 
     onWheel(e) {
-        if (!this.selectedObject) return;
         e.preventDefault();
+        const screenPos = this.getMousePos(e);
+        const worldPos = this.camera.screenToWorld(screenPos.x, screenPos.y);
+        const hitObject = this.scene.hitTest(worldPos.x, worldPos.y);
 
-        // Ctrl + Wheel = Scale
-        if (e.ctrlKey || e.metaKey) {
+        // If Rotation Mode ON and hovering object -> Rotate
+        if (this.rotationMode && hitObject) {
+            const rotateIntensity = 0.002;
+            hitObject.rotation += e.deltaY * rotateIntensity;
+            return;
+        }
+
+        // Ctrl + Wheel on Object -> Scale
+        if ((e.ctrlKey || e.metaKey) && hitObject) {
             const zoomIntensity = 0.001;
             const delta = -e.deltaY * zoomIntensity;
-            // Clamp scale 0.1 to 5
-            const newScale = Math.min(Math.max(0.1, this.selectedObject.scale + delta), 5);
-            this.selectedObject.scale = newScale;
+            hitObject.scale = Math.min(Math.max(0.1, hitObject.scale + delta), 5);
+            return;
         }
-        // Wheel = Rotate
-        else {
-            const rotateIntensity = 0.002;
-            this.selectedObject.rotation += e.deltaY * rotateIntensity;
-        }
+
+        // Default: Zoom Camera
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        this.camera.zoomAt(zoomFactor, screenPos.x, screenPos.y);
     }
 
     onMouseDown(e) {
-        const { x, y } = this.getMousePos(e);
+        const screenPos = this.getMousePos(e);
+        const worldPos = this.camera.screenToWorld(screenPos.x, screenPos.y);
 
         // Hit Test
-        const clickedObject = this.scene.hitTest(x, y);
-
-        // Deselect previous
-        if (this.selectedObject && this.selectedObject !== clickedObject) {
-            this.selectedObject.selected = false;
-        }
+        const clickedObject = this.scene.hitTest(worldPos.x, worldPos.y);
 
         if (clickedObject) {
+            if (this.selectedObject === clickedObject && this.checkDeleteClick(clickedObject, worldPos)) {
+                this.scene.remove(clickedObject);
+                this.selectedObject = null;
+                return;
+            }
+
             this.selectedObject = clickedObject;
             this.selectedObject.selected = true;
+            this.scene.moveToTop(clickedObject);
+
             this.isDragging = true;
-            this.dragStart = { x, y };
+            this.mode = 'dragObject';
+            this.dragStart = worldPos;
             this.initialObjectPosition = { x: clickedObject.x, y: clickedObject.y };
 
-            // Move to top of stack (optional, but standard behavior)
-            this.scene.moveToTop(clickedObject);
         } else {
+            // Clicked Background -> Pan Mode
             this.selectedObject = null;
+            this.scene.objects.forEach(o => o.selected = false);
+
+            this.isDragging = true;
+            this.mode = 'panCamera';
+            this.dragStart = screenPos; // Drag start in Screen Coords for panning
         }
     }
 
+    checkDeleteClick(object, worldPoint) {
+        return object.isDeleteButtonHit(worldPoint.x, worldPoint.y);
+    }
+
     onMouseMove(e) {
-        if (!this.isDragging || !this.selectedObject) return;
+        if (!this.isDragging) return;
+        const screenPos = this.getMousePos(e);
+        const worldPos = this.camera.screenToWorld(screenPos.x, screenPos.y);
 
-        const { x, y } = this.getMousePos(e);
-        const dx = x - this.dragStart.x;
-        const dy = y - this.dragStart.y;
+        if (this.mode === 'dragObject' && this.selectedObject) {
+            const dx = worldPos.x - this.dragStart.x;
+            const dy = worldPos.y - this.dragStart.y;
 
-        // Raw new position
-        let targetX = this.initialObjectPosition.x + dx;
-        let targetY = this.initialObjectPosition.y + dy;
+            let targetX = this.initialObjectPosition.x + dx;
+            let targetY = this.initialObjectPosition.y + dy;
 
-        // Apply Snapping
-        // Temporarily update object to test snap (or pass proposed coords)
-        // Here we pass a dummy object or just update the current one and snap it
-        this.selectedObject.x = targetX;
-        this.selectedObject.y = targetY;
+            this.selectedObject.x = targetX;
+            this.selectedObject.y = targetY;
 
-        const snapped = this.snappingManager.snap(this.selectedObject, this.scene.objects);
+            // Snap
+            const snapped = this.snappingManager.snap(this.selectedObject, this.scene.objects);
+            this.selectedObject.x = snapped.x;
+            this.selectedObject.y = snapped.y;
 
-        this.selectedObject.x = snapped.x;
-        this.selectedObject.y = snapped.y;
+        } else if (this.mode === 'panCamera') {
+            const dx = screenPos.x - this.dragStart.x;
+            const dy = screenPos.y - this.dragStart.y;
+            this.camera.pan(dx, dy);
+            this.dragStart = screenPos;
+        }
     }
 
     onMouseUp(e) {
         this.isDragging = false;
+        this.mode = 'idle';
+    }
+
+    autoGroup() {
+        const objects = this.scene.objects;
+        if (objects.length === 0) return;
+
+        // Settings
+        const padding = 10;
+
+        // Calculate total area to estimate grid width
+        let totalArea = 0;
+        objects.forEach(obj => {
+            totalArea += (obj.width * obj.scale + padding) * (obj.height * obj.scale + padding);
+        });
+
+        const targetWidth = Math.sqrt(totalArea) * 1.5; // Slightly wider than square
+
+        // Sort by height (descending) for better packing
+        const sorted = [...objects].sort((a, b) => (b.height * b.scale) - (a.height * a.scale));
+
+        let currentX = 0;
+        let currentY = 0;
+        let rowHeight = 0;
+
+        // Layout Logic
+        // We calculate positions relative to a group origin (0,0) and then center it later
+
+        sorted.forEach(obj => {
+            const w = obj.width * obj.scale;
+            const h = obj.height * obj.scale;
+
+            if (currentX + w > targetWidth) {
+                // New Row
+                currentX = 0;
+                currentY += rowHeight + padding;
+                rowHeight = 0;
+            }
+
+            obj.x = currentX;
+            obj.y = currentY;
+            obj.rotation = 0; // Reset rotation for clean layout
+
+            currentX += w + padding;
+            rowHeight = Math.max(rowHeight, h);
+        });
+
+        // Center the group
+        // 1. Calculate bounding box of group
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        objects.forEach(obj => {
+            const w = obj.width * obj.scale;
+            const h = obj.height * obj.scale;
+            minX = Math.min(minX, obj.x);
+            minY = Math.min(minY, obj.y);
+            maxX = Math.max(maxX, obj.x + w);
+            maxY = Math.max(maxY, obj.y + h);
+        });
+
+        const groupWidth = maxX - minX;
+        const groupHeight = maxY - minY;
+
+        // Target Center (World Space 0,0 is usually center if camera is at 0,0?)
+        // Wait, Camera resets to 0,0. World starts at 0,0 top-left typically?
+        // Our camera pan logic: screenToWorld((w/2), (h/2)) gives center in world.
+
+        // Let's verify where standard view is.
+        // Reset view sets camera x=0, y=0.
+        // screenToWorld: (screenX - 0)/1 = screenX.
+        // So World (0,0) is top-left of screen.
+        // We want to center the group in the middle of the "Canvas" (which is infinite, but let's say viewport).
+
+        const centerX = this.canvas.width / 2; // Screen Center X (approx World Center X at reset)
+        const centerY = this.canvas.height / 2;
+
+        // Offset objects to center them around centerX, centerY
+        const offsetX = centerX - groupWidth / 2;
+        const offsetY = centerY - groupHeight / 2;
+
+        objects.forEach(obj => {
+            obj.x += offsetX;
+            obj.y += offsetY;
+        });
+
+        // Reset Camera to standard
+        this.camera.reset();
     }
 }
