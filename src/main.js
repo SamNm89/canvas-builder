@@ -151,6 +151,26 @@ container.addEventListener('drop', (e) => {
 });
 
 
+eventBus.on('assetDropped', ({ src, clientX, clientY }) => {
+  const img = new Image();
+  img.src = src;
+  img.onload = () => {
+    const rect = canvasManager.canvas.getBoundingClientRect();
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+
+    const worldPos = camera.screenToWorld(screenX, screenY);
+
+    // Mobile images often huge, but user requested NO auto-scaling.
+    // So we keep scale = 1.
+    let scale = 1;
+
+    const obj = new CanvasObject(img, worldPos.x - (img.width * scale) / 2, worldPos.y - (img.height * scale) / 2);
+    obj.scale = scale;
+    scene.add(obj);
+  };
+});
+
 // Render Loop
 function animate() {
   requestAnimationFrame(animate);
