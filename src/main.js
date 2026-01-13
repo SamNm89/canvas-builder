@@ -114,8 +114,10 @@ container.addEventListener('drop', (e) => {
     // Convert to World
     const worldPos = camera.screenToWorld(screenX, screenY);
 
+    // Scale down if huge - DISABLED by user request
+    // We want original pixel size.
     let scale = 1;
-    if (img.width > 500) scale = 500 / img.width;
+    // if (img.width > 500) scale = 500 / img.width;
 
     const obj = new CanvasObject(img, worldPos.x - (img.width * scale) / 2, worldPos.y - (img.height * scale) / 2);
     obj.scale = scale;
