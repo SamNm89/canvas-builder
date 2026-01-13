@@ -17,11 +17,11 @@ export class Scene {
         this.add(object);
     }
 
-    draw(ctx) {
+    draw(ctx, zoom = 1) {
         // Determine render order? For now, insertion order (Painter's algorithm)
         this.objects.forEach(obj => {
             if (obj.draw) {
-                obj.draw(ctx);
+                obj.draw(ctx, zoom);
             }
         });
     }

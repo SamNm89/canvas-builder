@@ -10,7 +10,7 @@ export class CanvasObject {
         this.selected = false;
     }
 
-    draw(ctx) {
+    draw(ctx, zoom = 1) {
         ctx.save();
 
         // Move to center of object for rotation/scaling
@@ -30,10 +30,13 @@ export class CanvasObject {
             this.height
         );
 
-        // Draw Selection Outline
+        // Draw Selection Outline & UI
         if (this.selected) {
             ctx.strokeStyle = '#007acc'; // Brand blue
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2 / this.scale; // Keep outline constant width relative to object? or screen?
+            // Actually, for outline, usually we want it consistent relative to object or screen.
+            // Let's keep it simple for outline.
+
             ctx.strokeRect(
                 -this.width / 2,
                 -this.height / 2,
@@ -42,40 +45,47 @@ export class CanvasObject {
             );
 
             // Draw Delete Button (Top Right)
-            const btnSize = 20;
+            // Goal: Constant Screen Size ~24px
+            // The context is currently scaled by `this.scale`.
+            // The camera zoom is handled outside (passed as `zoom`).
+            // Total scale acting on drawing commands is `this.scale * zoom`.
+            // To get 24px screen size, we need to draw with radius:
+            // R_local = (24 / 2) / (this.scale * zoom)
+
+            const screenBtnSize = 24;
+            const propertiesScale = this.scale * zoom;
+            const localRadius = (screenBtnSize / 2) / propertiesScale;
+
+            this.currentButtonRadius = localRadius; // Store for hit test
+
             const x = this.width / 2;
             const y = -this.height / 2;
 
             ctx.fillStyle = '#ff4d4d';
             ctx.beginPath();
-            ctx.arc(x, y, btnSize / 2, 0, Math.PI * 2);
+            ctx.arc(x, y, localRadius, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2 / propertiesScale; // Constant screen line width for X
+
+            // X icon size (approx 60% of button)
+            const iconOffset = localRadius * 0.4;
+
             ctx.beginPath();
-            ctx.moveTo(x - 5, y - 5);
-            ctx.lineTo(x + 5, y + 5);
-            ctx.moveTo(x + 5, y - 5);
-            ctx.lineTo(x - 5, y + 5);
+            ctx.moveTo(x - iconOffset, y - iconOffset);
+            ctx.lineTo(x + iconOffset, y + iconOffset);
+            ctx.moveTo(x + iconOffset, y - iconOffset);
+            ctx.lineTo(x - iconOffset, y + iconOffset);
             ctx.stroke();
         }
 
         ctx.restore();
     }
 
-    isDeleteButtonHit(wx, wy) {
+    isDeleteButtonHit(wx, wy, zoom = 1) {
         if (!this.selected) return false;
 
-        // Transform world point to local point
-        // Inverse Translate -> Rotate -> Scale is complex manually.
-        // Simplifying: Check distance in world space is risky if rotated.
-        // Let's do a simple check: transform point into object space
-
-        // We can't easily inverse transform without a matrix lib or math.
-        // ALTERNATIVE: InteractionManager passes 'local' coords? No.
-
-        // Let's implement a rudimentary inverse transform for this specific hit test
         const centerX = this.x + (this.width * this.scale) / 2;
         const centerY = this.y + (this.height * this.scale) / 2;
 
@@ -92,21 +102,19 @@ export class CanvasObject {
         const lx = rx / this.scale;
         const ly = ry / this.scale;
 
-        // Now we are in local space relative to center. 
-        // Top right corner is: width/2, -height/2
         const btnX = this.width / 2;
         const btnY = -this.height / 2;
 
         const dist = Math.sqrt(Math.pow(lx - btnX, 2) + Math.pow(ly - btnY, 2));
 
-        // Button radius 10 / Scale (since we are in unscaled space? No, scale affects visual size)
-        // Actually we unscaled the mouse, so we compare to unscaled button pos.
-        // But the button is drawn with fixed pixel size usually?
-        // Wait, in draw(), we drew AFTER scale() call. So the button size scales with object!
-        // That means `btnSize = 20` is 20 *units* in local space.
-        // So distance check against 10 is correct.
+        // Use the same radius calculation
+        const screenBtnSize = 24;
+        const propertiesScale = this.scale * zoom;
+        const hitRadius = (screenBtnSize / 2) / propertiesScale;
 
-        return dist < 15; // 15 tolerance
+        // Add small tolerance padding? Or exact? 
+        // User complained hit area is not same. Let's make it exact or slightly generous.
+        return dist < (hitRadius * 1.2);
     }
 
     containsPoint(px, py) {

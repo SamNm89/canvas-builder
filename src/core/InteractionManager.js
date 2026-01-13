@@ -114,7 +114,7 @@ export class InteractionManager {
     }
 
     checkDeleteClick(object, worldPoint) {
-        return object.isDeleteButtonHit(worldPoint.x, worldPoint.y);
+        return object.isDeleteButtonHit(worldPoint.x, worldPoint.y, this.camera.zoom);
     }
 
     onMouseMove(e) {
