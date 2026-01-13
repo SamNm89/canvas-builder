@@ -183,7 +183,7 @@ function animate() {
   ctx.translate(camera.x, camera.y);
   ctx.scale(camera.zoom, camera.zoom);
 
-  scene.draw(ctx);
+  scene.draw(ctx, camera.zoom);
 
   // Draw Snap Indicators (World Space)
   interactionManager.snappingManager.drawIndicators(ctx);
