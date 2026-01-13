@@ -131,6 +131,8 @@ h2 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+    align-content: start;
+    /* Fixes huge gaps by packing rows at top */
     overflow-y: auto;
     flex-grow: 1;
     padding-right: 5px;
