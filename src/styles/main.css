@@ -1,0 +1,140 @@
+:root {
+    --color-bg: #1e1e1e;
+    --color-toolbar: #252526;
+    --color-canvas: #333333;
+    --color-accent: #007acc;
+    --color-text: #ffffff;
+    --color-border: #3e3e42;
+}
+
+body {
+    margin: 0;
+    display: flex;
+    place-items: center;
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden;
+    /* Prevent body scroll, app handles scrolling */
+}
+
+#app {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: row;
+    /* Sidebar on right means row direction usually, but let's see */
+}
+
+/* Layout Structure */
+#canvas-container {
+    flex-grow: 1;
+    background-color: var(--color-canvas);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* Dotted grid pattern for professional look */
+    background-image: radial-gradient(#4a4a4a 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+#toolbar {
+    width: 300px;
+    background-color: var(--color-toolbar);
+    border-left: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    box-sizing: border-box;
+    z-index: 10;
+}
+
+/* UI Elements */
+.btn {
+    background-color: var(--color-accent);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    text-align: center;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn:hover {
+    filter: brightness(1.1);
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+h2 {
+    font-size: 1.2rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #ccc;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.5rem;
+}
+
+/* Asset Grid */
+.asset-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    overflow-y: auto;
+    flex-grow: 1;
+    padding-right: 5px;
+    /* space for scrollbar */
+}
+
+.asset-item {
+    aspect-ratio: 1;
+    background-color: #2d2d30;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: grab;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.asset-item:hover {
+    border-color: var(--color-accent);
+}
+
+.asset-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    /* Let the container handle drag events */
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-toolbar);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #424242;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
