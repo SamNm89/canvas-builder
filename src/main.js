@@ -12,6 +12,7 @@ import { eventBus } from './core/EventBus.js';
 document.querySelector('#app').innerHTML = `
   <div id="canvas-container"></div>
   <aside id="toolbar">
+    <button id="toggle-toolbar-btn" title="Toggle Sidebar">></button>
     <h2>Assets</h2>
     <label class="btn" style="margin-bottom: 1rem;">
       <span>+ Upload Image</span>
@@ -58,6 +59,30 @@ eventBus.on('rotationModeChanged', (isActive) => {
   }
 });
 document.getElementById('btn-auto-layout').addEventListener('click', () => interactionManager.autoGroup());
+
+const toolbar = document.getElementById('toolbar');
+const toggleBtn = document.getElementById('toggle-toolbar-btn');
+
+toggleBtn.addEventListener('click', () => {
+  toolbar.classList.toggle('toolbar-hidden');
+  // Update arrow direction
+  if (toolbar.classList.contains('toolbar-hidden')) {
+    toggleBtn.textContent = '<';
+  } else {
+    toggleBtn.textContent = '>';
+  }
+  // Resize canvas to fill space? 
+  // Since we used flexbox for layout, if toolbar is absolute when hidden, canvas fills.
+  // If toolbar stays relative in DOM but hidden, space is kept.
+  // In CSS I set it to absolute when hidden so it should overlay.
+  // But we need to handle the layout shift if we want canvas to grow.
+
+  // Actually, simply toggling a class on app container might be better for grid layout,
+  // but here we have flex. 
+
+  // If #toolbar has absolute positioning when hidden, it removes itself from flow.
+  canvasManager.resize(); // Trigger resize to update canvas dimensions
+});
 
 // Export Buttons (High Quality)
 document.getElementById('btn-export-png').addEventListener('click', () => {
