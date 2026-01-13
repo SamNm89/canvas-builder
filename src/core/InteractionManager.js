@@ -83,15 +83,18 @@ export class InteractionManager {
         const screenPos = this.getMousePos(e);
         const worldPos = this.camera.screenToWorld(screenPos.x, screenPos.y);
 
+        // Check Delete Button First (if object selected)
+        if (this.selectedObject && this.checkDeleteClick(this.selectedObject, worldPos)) {
+            this.scene.remove(this.selectedObject);
+            this.selectedObject = null;
+            return;
+        }
+
         // Hit Test
         const clickedObject = this.scene.hitTest(worldPos.x, worldPos.y);
 
         if (clickedObject) {
-            if (this.selectedObject === clickedObject && this.checkDeleteClick(clickedObject, worldPos)) {
-                this.scene.remove(clickedObject);
-                this.selectedObject = null;
-                return;
-            }
+            // Already checked delete above
 
             this.selectedObject = clickedObject;
             this.selectedObject.selected = true;
