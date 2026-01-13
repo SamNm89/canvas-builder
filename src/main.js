@@ -6,6 +6,7 @@ import { AssetManager } from './ui/AssetManager.js';
 import { Camera } from './core/Camera.js';
 import { InteractionManager } from './core/InteractionManager.js';
 import { Exporter } from './core/Exporter.js';
+import { eventBus } from './core/EventBus.js';
 
 // Setup Layout
 document.querySelector('#app').innerHTML = `
@@ -44,7 +45,17 @@ const exporter = new Exporter(canvasManager); // Will need update for Camera sup
 document.getElementById('btn-reset-view').addEventListener('click', () => camera.reset());
 document.getElementById('btn-toggle-rot').addEventListener('click', () => {
   interactionManager.toggleRotationMode();
-  // Visual feedback?
+});
+
+eventBus.on('rotationModeChanged', (isActive) => {
+  const btn = document.getElementById('btn-toggle-rot');
+  if (isActive) {
+    btn.style.backgroundColor = '#007acc'; // Brand Blue
+    btn.textContent = 'Rotation: ON (R)';
+  } else {
+    btn.style.backgroundColor = '#555';
+    btn.textContent = 'Toggle Rotation (R)';
+  }
 });
 document.getElementById('btn-auto-layout').addEventListener('click', () => interactionManager.autoGroup());
 
