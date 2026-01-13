@@ -47,7 +47,8 @@ export class Exporter {
         // Safety check for empty or invalid bounds
         if (!isFinite(minX) || !isFinite(maxX)) return;
 
-        const padding = 50;
+        // Fixed: No padding for exact edge export
+        const padding = 0;
         const width = Math.ceil(maxX - minX + padding * 2);
         const height = Math.ceil(maxY - minY + padding * 2);
 
