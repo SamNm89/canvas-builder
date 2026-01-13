@@ -37,6 +37,108 @@ export class InteractionManager {
         eventBus.on('toggleRotation', () => this.toggleRotationMode());
         eventBus.on('resetView', () => this.camera.reset());
         eventBus.on('autoGroup', () => this.autoGroup());
+
+        // Touch Listeners (Mobile Zoom/Pan/Drag)
+        this.canvas.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
+        this.canvas.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
+        this.canvas.addEventListener('touchend', (e) => this.onTouchEnd(e));
+    }
+
+    getTouchPos(touch) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: touch.clientX - rect.left,
+            y: touch.clientY - rect.top
+        };
+    }
+
+    onTouchStart(e) {
+        e.preventDefault();
+
+        if (e.touches.length === 1) {
+            // Emulate Mouse Down
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            this.onMouseDown(mouseEvent);
+        } else if (e.touches.length === 2) {
+            // Pinch Start
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+
+            // Calculate distance
+            const dx = t1.clientX - t2.clientX;
+            const dy = t1.clientY - t2.clientY;
+            this.lastPinchDistance = Math.sqrt(dx * dx + dy * dy);
+
+            // Calculate center
+            const cx = (t1.clientX + t2.clientX) / 2;
+            const cy = (t1.clientY + t2.clientY) / 2;
+            const rect = this.canvas.getBoundingClientRect();
+            this.lastPinchCenter = { x: cx - rect.left, y: cy - rect.top };
+
+            this.mode = 'pinchZoom';
+        }
+    }
+
+    onTouchMove(e) {
+        e.preventDefault();
+
+        if (this.mode === 'pinchZoom' && e.touches.length === 2) {
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+
+            // 1. Zoom
+            const dx = t1.clientX - t2.clientX;
+            const dy = t1.clientY - t2.clientY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (this.lastPinchDistance) {
+                const zoomFactor = dist / this.lastPinchDistance;
+                this.camera.zoomAt(zoomFactor, this.lastPinchCenter.x, this.lastPinchCenter.y);
+            }
+            this.lastPinchDistance = dist;
+
+            // 2. Pan (Move Center)
+            const cx = (t1.clientX + t2.clientX) / 2;
+            const cy = (t1.clientY + t2.clientY) / 2;
+            const rect = this.canvas.getBoundingClientRect();
+            const currentCenter = { x: cx - rect.left, y: cy - rect.top };
+
+            const panX = currentCenter.x - this.lastPinchCenter.x;
+            const panY = currentCenter.y - this.lastPinchCenter.y;
+
+            this.camera.pan(panX, panY);
+
+            this.lastPinchCenter = currentCenter;
+
+        } else if (e.touches.length === 1) {
+            // Emulate Mouse Move
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            this.onMouseMove(mouseEvent);
+        }
+    }
+
+    onTouchEnd(e) {
+        if (e.touches.length < 2 && this.mode === 'pinchZoom') {
+            this.mode = 'idle';
+        }
+
+        // Emulate Mouse Up
+        if (e.changedTouches.length > 0) {
+            const touch = e.changedTouches[0];
+            const mouseEvent = new MouseEvent('mouseup', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            this.onMouseUp(mouseEvent);
+        }
     }
 
     toggleRotationMode() {
